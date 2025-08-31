@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>免疫塔防戰 v3.5</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f8ff;
+            margin: 0;
+            color: #333;
+        }
+        #game-container {
+            width: 800px;
+            height: 600px;
+            border: 3px solid #333;
+            border-radius: 10px;
+            position: relative;
+            background-color: #a8d5a8;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        #main-stage {
+            width: 100%;
+            position: relative;
+            height: 150px; 
+        }
+        #castle {
+            position: absolute;
+            right: 20px;
+            top: 0; 
+            width: 120px;
+            height: 120px;
+            transition: transform 0.1s; /* For shake effect */
+        }
+        #tower-shape-display {
+            position: absolute;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .tower-shape {
+             width: 50px;
+             height: 50px;
+             animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #enemy-path {
+            position: absolute;
+            top: 35px; 
+            left: 0;
+            width: 100%;
+            height: 100px;
+        }
+        .enemy {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            top: 25px;
+            left: 20px; /* Initial static position */
+            /* MODIFICATION: Transition is now set dynamically via JavaScript */
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+        }
+        .shape-btn {
+            width: 60px;
+            height: 60px;
+            margin: 0 5px;
+            cursor: pointer;
+            border: 2px solid #555;
+            background-color: #fff;
+            padding: 5px;
+            box-sizing: border-box;
+            border-radius: 8px;
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+        .shape-btn:hover:not(:disabled) {
+            transform: scale(1.1);
+            box-shadow: 0 0 10px gold;
+        }
+        .shape-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+        }
+        #game-info {
+            font-size: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #stats-display {
+            display: flex;
+            gap: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #health-container {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        #message-bar {
+            position: absolute;
+            top: 65px;
+            width: 100%;
+            text-align: center;
+            font-weight: bold;
+            color: #4a4a4a;
+        }
+        #message {
+            font-size: 22px;
+            margin: 0;
+        }
+        #message-subtitle {
+            font-size: 16px;
+            color: #555;
+            margin-top: 2px;
+        }
+        #action-button {
+            padding: 12px 25px;
+            font-size: 20px;
+            cursor: pointer;
+            display: block;
+            margin: 20px auto 0;
+            border-radius: 8px;
+            border: none;
+            background-color: #4CAF50;
+            color: white;
+            box-shadow: 0 4px #999;
+            transition: all 0.1s;
+        }
+        #action-button:active {
+            box-shadow: 0 2px #666;
+            transform: translateY(2px);
+        }
+        /* Style for smaller text in buttons */
+        .btn-subtitle {
+            font-size: 14px;
+            font-weight: normal;
+            opacity: 0.9;
+            display: block;
+            margin-top: 4px;
+        }
+
+        .modal-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: white;
+            z-index: 100;
+        }
+        .modal-box {
+            padding: 40px;
+            background-color: #333;
+            border-radius: 20px;
+        }
+        .modal-box h1 {
+            font-size: 50px;
+            margin: 0 0 10px 0;
+        }
+        .modal-box p {
+            font-size: 18px;
+            margin-top: 0;
+            color: #ccc;
+        }
+        .modal-box button {
+            padding: 15px 30px; 
+            font-size: 20px; 
+            cursor: pointer; 
+            border-radius: 8px;
+            border: none;
+            line-height: 1.3;
+        }
+        
+        /* --- Animations --- */
+        @keyframes pop-in {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .explode {
+            animation: explode-effect 0.5s forwards;
+        }
+        @keyframes explode-effect {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+        .shake-effect { animation: shake 0.5s; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        .damage-flash { filter: brightness(1.5) sepia(1) hue-rotate(-50deg); }
+        
+        /* --- Shapes --- */
+        .circle { border-radius: 50%; background-color: #ff6347; }
+        .square { background-color: #4682b4; }
+        .star { background-color: #ffd700; clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+        .rectangle { background-color: #9370db; width: 60px; height: 35px; }
+        .diamond { background-color: #00ced1; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="ui-overlay">
+        <div id="game-info">
+            <p id="round-info"></p>
+        </div>
+        <div id="stats-display">
+            <div id="health-container">❤️ ❤️ ❤️</div>
+        </div>
+    </div>
+    
+    <div id="main-stage">
+        <div id="castle">
+            <svg viewBox="0 0 100 100" style="position: absolute; bottom: 0; width: 100%; height: 100%;"><path d="M10 90 V40 H20 V50 H30 V40 H40 V50 H50 V40 H60 V50 H70 V40 H80 V50 H90 V90 H10 Z" fill="#666"/><path d="M35 90 V70 H65 V90 H35 Z" fill="#444"/></svg>
+            <div id="tower-shape-display"></div>
+        </div>
+        <div id="enemy-path"></div>
+    </div>
+    
+    <div id="message-bar">
+        <p id="message"></p>
+        <p id="message-subtitle"></p>
+    </div>
+
+    <div id="controls">
+        <div id="shape-selection">
+            <button class="shape-btn" data-shape="circle"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#ff6347"/></svg></button>
+            <button class="shape-btn" data-shape="square"><svg viewBox="0 0 100 100"><rect width="90" height="90" x="5" y="5" fill="#4682b4"/></svg></button>
+            <button class="shape-btn" data-shape="star"><svg viewBox="0 0 100 100"><polygon points="50,5 61,40 98,40 68,62 79,98 50,75 21,98 32,62 2,40 39,40" fill="#ffd700"/></svg></button>
+            <button class="shape-btn" data-shape="rectangle"><svg viewBox="0 0 100 100"><rect width="90" height="50" x="5" y="25" fill="#9370db"/></svg></button>
+            <button class="shape-btn" data-shape="diamond"><svg viewBox="0 0 100 100"><polygon points="50,5 95,50 50,95 5,50" fill="#00ced1"/></svg></button>
+        </div>
+        <button id="action-button" style="display: none;"></button>
+    </div>
+
+    <div id="round-result-overlay" class="modal-overlay">
+        <div class="modal-box">
+            <h1 id="round-result-title"></h1>
+            <p id="round-result-subtitle"></p>
+            <button id="next-round-button"></button>
+        </div>
+    </div>
+
+    <div id="end-game-overlay" class="modal-overlay">
+        <div class="modal-box">
+            <h1 id="end-game-title"></h1>
+            <p id="end-game-subtitle"></p>
+            <button onclick="location.reload()">重新挑戰<span class="btn-subtitle">Restart</span></button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function playSound(type) { console.log(`Sound: ${type}`); }
+
+    const gameData = {
+        currentRound: 1,
+        currentPhase: 1,
+        totalRounds: 3,
+        enemyShape: '',
+        playerChoice: '',
+        shapes: ['circle', 'square', 'star', 'rectangle', 'diamond'],
+        castleHealth: 3,
+        maxHealth: 3,
+    };
+
+    const elements = {
+        roundInfo: document.getElementById('round-info'),
+        message: document.getElementById('message'),
+        messageSubtitle: document.getElementById('message-subtitle'),
+        shapeButtons: document.querySelectorAll('.shape-btn'),
+        actionButton: document.getElementById('action-button'),
+        towerShapeDisplay: document.getElementById('tower-shape-display'),
+        castle: document.getElementById('castle'),
+        enemyPath: document.getElementById('enemy-path'),
+        healthContainer: document.getElementById('health-container'),
+        gameContainer: document.getElementById('game-container'),
+        endGameOverlay: document.getElementById('end-game-overlay'),
+        endGameTitle: document.getElementById('end-game-title'),
+        endGameSubtitle: document.getElementById('end-game-subtitle'),
+        roundResultOverlay: document.getElementById('round-result-overlay'),
+        roundResultTitle: document.getElementById('round-result-title'),
+        roundResultSubtitle: document.getElementById('round-result-subtitle'),
+        nextRoundButton: document.getElementById('next-round-button'),
+    };
+
+    function startGame() {
+        gameData.currentRound = 1;
+        gameData.castleHealth = gameData.maxHealth;
+        updateHealthDisplay();
+        startRound();
+    }
+
+    function startRound() {
+        elements.roundResultOverlay.style.display = 'none';
+        elements.towerShapeDisplay.innerHTML = ''; 
+        elements.enemyPath.innerHTML = '';
+        gameData.playerChoice = '';
+        gameData.enemyShape = getRandomShape();
+        gameData.currentPhase = 1;
+        
+        updateDisplay();
+        enableShapeButtons(true);
+        elements.actionButton.style.display = 'none';
+    }
+
+    function updateDisplay() {
+        const phaseName = gameData.currentPhase === 1 ? '預測回合 (Prediction Phase)' : '攻擊回合 (Attack Phase)';
+        elements.roundInfo.textContent = `第 ${gameData.currentRound} 局 / Round ${gameData.currentRound}`;
+        
+        if (gameData.currentPhase === 1) {
+            elements.message.textContent = '敵人即將來襲！請「預測」敵人的形狀！';
+            elements.messageSubtitle.textContent = 'Enemy incoming! Please "predict" its shape!';
+        } else {
+            elements.message.textContent = '敵人進攻中！請選擇正確的塔房防禦！';
+            elements.messageSubtitle.textContent = 'The enemy is attacking! Choose the correct tower to defend!';
+        }
+    }
+    
+    function handleShapeSelection(e) {
+        playSound('select');
+        gameData.playerChoice = e.currentTarget.dataset.shape;
+        buildTower(gameData.playerChoice); 
+        enableShapeButtons(false);
+        processPlayerChoice();
+    }
+
+    function buildTower(shape) {
+        elements.towerShapeDisplay.innerHTML = `<div class="tower-shape ${shape}"></div>`;
+    }
+    
+    function spawnEnemy() {
+        const enemy = document.createElement('div');
+        enemy.className = `enemy ${gameData.enemyShape}`;
+        elements.enemyPath.appendChild(enemy);
+        return enemy;
+    }
+
+    function processPlayerChoice() {
+        const success = gameData.playerChoice === gameData.enemyShape;
+        
+        if (gameData.currentPhase === 1) {
+            if (success) {
+                playSound('success');
+                const enemy = spawnEnemy();
+                enemy.classList.add('explode');
+                elements.message.textContent = '預測成功！已建立有效防禦！';
+                elements.messageSubtitle.textContent = 'Prediction successful! Effective defense established!';
+                setTimeout(() => showRoundResult(true), 500);
+
+            } else {
+                playSound('failure');
+                elements.message.textContent = '預測失敗！準備進入攻擊回合！';
+                elements.messageSubtitle.textContent = 'Prediction failed! Prepare for the attack phase!';
+                elements.actionButton.innerHTML = '進入攻擊回合<span class="btn-subtitle">Enter Attack Phase</span>';
+                elements.actionButton.onclick = startAttackPhase;
+                elements.actionButton.style.display = 'block';
+            }
+        } else {
+            const movingEnemy = document.querySelector('.enemy');
+            if (success) {
+                playSound('success');
+                elements.message.textContent = '精準攔截！成功擊退敵人！';
+                elements.messageSubtitle.textContent = 'Precise interception! Enemy defeated!';
+
+                if (movingEnemy) {
+                    movingEnemy.style.transition = 'none';
+                    movingEnemy.classList.add('explode');
+                    setTimeout(() => movingEnemy.remove(), 500);
+                }
+                setTimeout(() => showRoundResult(true), 500);
+
+            } else {
+                playSound('failure');
+                elements.message.textContent = '蓋錯了！防禦無效，家園即將被攻擊！';
+                elements.messageSubtitle.textContent = 'Wrong tower! Defense ineffective, the castle will be attacked!';
+            }
+        }
+    }
+
+    function showRoundResult(isSuccess) {
+        enableShapeButtons(false);
+        elements.actionButton.style.display = 'none';
+
+        if (isSuccess) {
+            elements.roundResultTitle.textContent = '挑戰成功！';
+            elements.roundResultSubtitle.textContent = 'Round Clear!';
+            elements.roundResultTitle.style.color = '#28a745';
+        } else {
+            elements.roundResultTitle.textContent = '挑戰失敗！';
+            elements.roundResultSubtitle.textContent = 'Round Failed!';
+            elements.roundResultTitle.style.color = '#dc3545';
+        }
+
+        if (gameData.currentRound >= gameData.totalRounds) {
+            elements.nextRoundButton.innerHTML = '前往結算<span class="btn-subtitle">Proceed to Results</span>';
+        } else {
+            elements.nextRoundButton.innerHTML = `前往第 ${gameData.currentRound + 1} 局<span class="btn-subtitle">Proceed to Round ${gameData.currentRound + 1}</span>`;
+        }
+        elements.roundResultOverlay.style.display = 'flex';
+    }
+
+    function getEnemySpeed() {
+        const baseSpeed = 2.0; // Base duration in seconds
+        if (gameData.currentRound === 1) return baseSpeed - 0.7; // 1.3s
+        if (gameData.currentRound === 2) return baseSpeed - 0.9; // 1.1s
+        if (gameData.currentRound === 3) return baseSpeed - 1.0; // 1.0s
+        return 1.0; // Default for any rounds beyond 3
+    }
+
+    function startAttackPhase() {
+        gameData.currentPhase = 2;
+        elements.towerShapeDisplay.innerHTML = '';
+        updateDisplay();
+        enableShapeButtons(true);
+        elements.actionButton.style.display = 'none';
+
+        const enemy = spawnEnemy();
+        const speed = getEnemySpeed();
+        enemy.style.transition = `left ${speed}s linear`; // Set dynamic speed
+
+        enemy.addEventListener('transitionend', () => {
+            takeDamage();
+            enemy.remove();
+        }, { once: true });
+        
+        setTimeout(() => { enemy.style.left = '620px'; }, 50); 
+    }
+
+    function startNextRound() {
+        gameData.currentRound++;
+        if (gameData.currentRound > gameData.totalRounds) {
+            endGame();
+        } else {
+            startRound();
+        }
+    }
+    
+    function takeDamage() {
+        if (gameData.castleHealth <= 0) return;
+        playSound('damage');
+        gameData.castleHealth--;
+        updateHealthDisplay();
+        
+        elements.gameContainer.classList.add('shake-effect');
+        elements.castle.classList.add('damage-flash');
+        setTimeout(() => {
+            elements.gameContainer.classList.remove('shake-effect');
+            elements.castle.classList.remove('damage-flash');
+        }, 500);
+
+        if (gameData.castleHealth <= 0) {
+            endGame();
+        } else if (gameData.currentPhase === 2) {
+             elements.message.textContent = '雖然受損，但我們撐過去了！';
+             elements.messageSubtitle.textContent = 'We took damage, but we survived!';
+             showRoundResult(false);
+        }
+    }
+    
+    function endGame() {
+        elements.roundResultOverlay.style.display = 'none';
+        enableShapeButtons(false);
+        elements.actionButton.style.display = 'none';
+        
+        if (gameData.castleHealth <= 0) {
+            playSound('gameover');
+            elements.endGameTitle.textContent = 'GAME OVER';
+            elements.endGameSubtitle.textContent = '你的家園被摧毀了！ / Your homeland has been destroyed!';
+            elements.endGameTitle.style.color = '#dc3545';
+        } else {
+            playSound('success');
+            elements.endGameTitle.textContent = '挑戰成功！';
+            elements.endGameSubtitle.textContent = '恭喜！你已成功守住家園！/ Congratulations! You have defended your homeland!';
+            elements.endGameTitle.style.color = '#28a745';
+        }
+        elements.endGameOverlay.style.display = 'flex';
+    }
+
+    // --- Helper Functions ---
+    function updateHealthDisplay() { elements.healthContainer.textContent = '❤️ '.repeat(gameData.castleHealth); }
+    function getRandomShape() { return gameData.shapes[Math.floor(Math.random() * gameData.shapes.length)]; }
+    function enableShapeButtons(enabled) { elements.shapeButtons.forEach(btn => btn.disabled = !enabled); }
+    
+    // --- Event Listeners ---
+    elements.shapeButtons.forEach(btn => btn.addEventListener('click', handleShapeSelection));
+    elements.nextRoundButton.addEventListener('click', startNextRound);
+
+    // --- Start the game ---
+    startGame();
+</script>
+
+</body>
+</html>
